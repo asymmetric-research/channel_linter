@@ -184,8 +184,13 @@ import (
 	"go/types"
 	"reflect"
 
+	"github.com/golangci/plugin-module-register/register"
 	"golang.org/x/tools/go/analysis"
 )
+
+type ChannelCheckPlugin struct {
+	settings Settings
+}
 
 // Settings holds the configuration for the channelcheck linter.
 type Settings struct {
@@ -207,14 +212,43 @@ var flagSet flag.FlagSet
 // Global structure to store the variables in
 var settings Settings
 
+func New(settings_new any) (register.LinterPlugin, error) {
+	s, err := register.DecodeSettings[Settings](settings_new)
+	if err != nil {
+		return nil, err
+	}
+	settings.CheckBlockingSends = s.CheckBlockingSends
+	settings.CheckBufferAmount = s.CheckBufferAmount
+	settings.CheckUnbufferedChannels = s.CheckUnbufferedChannels
+
+	return &ChannelCheckPlugin{settings: s}, nil
+}
+
+func (f *ChannelCheckPlugin) BuildAnalyzers() ([]*analysis.Analyzer, error) {
+	return []*analysis.Analyzer{
+		{
+			Name:  "channelcheck",
+			Doc:   "reports channel blocking issues",
+			Run:   run,
+			Flags: flagSet,
+		},
+	}, nil
+}
+
 // Initialize the flags from the golangci-lint
 func init() {
 
 	flagSet.BoolVar(&settings.CheckUnbufferedChannels, "unbuffered", false, "Check for unbuffered channel creation")
 	flagSet.BoolVar(&settings.CheckBlockingSends, "blocking", true, "Check for blocking sends without default/timeout")
 	flagSet.Uint64Var(&settings.CheckBufferAmount, "bufferMax", 0, "Check for maximum length of channel buffer being exceeded")
+	register.Plugin("channelcheck", New)
 	return
 }
+
+func (f *ChannelCheckPlugin) GetLoadMode() string {
+	return register.LoadModeSyntax
+}
+
 func run(pass *analysis.Pass) (interface{}, error) {
 
 	for _, file := range pass.Files {
