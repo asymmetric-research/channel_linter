@@ -5,8 +5,11 @@ import (
 	"time"
 )
 
+// Doesn't detect this currently
+var channelAmount = 100
+
 func main5() {
-	ch := make(chan int, 1)
+	ch := make(chan int, channelAmount)
 	var chInterface interface{} = ch
 
 	select {

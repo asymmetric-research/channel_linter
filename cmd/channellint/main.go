@@ -1,7 +1,7 @@
 package main
 
 import (
-	"channel_linter/channelcheck"
+	channelcheck "github.com/asymmetric-research/channel_linter"
 
 	"golang.org/x/tools/go/analysis/singlechecker"
 )

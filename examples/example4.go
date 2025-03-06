@@ -6,7 +6,7 @@ import (
 )
 
 func main4() {
-	ch := make(chan int, 0)
+	ch := make(chan int, 100)
 	var chInterface interface{} = ch
 
 	select {
