@@ -14,6 +14,7 @@ This is the recommended way to use the linter. golangci-lint has a [module plugi
 
 1. Download this repo locally.
 2. In your target repo, create a `.custom-gcl.yml` file. Add the following content: 
+   NOTE: This can't be directly copied. Use the contents of `.example-custom-gcl.yml`.
     ```yaml
         version: v1.64.5
         plugins:
@@ -22,16 +23,17 @@ This is the recommended way to use the linter. golangci-lint has a [module plugi
             path: /Path/to/channelcheck_repo
         name: golangci-lint-with-channelcheck
     ```
-3. In your `.golangci.yaml` file, add the following and enable the linter: 
+3. In your `.golangci.yaml` file, add the following and enable the linter. 
+  NOTE: This can't be directly copied. Use the contents of `.example-golangci.yml`.
     ```yaml 
-        linters-settings:
-            custom: 
-                channelcheck:
-                type: "module" 
-                description: Static analysis for go channel issues   
-                settings: 
-                    CheckBlockingSends: true
-                    CheckUnbufferedChannels: false
+    linters-settings:
+        custom: 
+            channelcheck:
+            type: "module" 
+            description: Static analysis for go channel issues   
+            settings: 
+                CheckBlockingSends: true
+                CheckUnbufferedChannels: false
     ```
 4. Build the custom version of `golangci-lint`. This is literally recompiling the linter binary and adding our linter into it.
     ```bash 
@@ -39,7 +41,7 @@ This is the recommended way to use the linter. golangci-lint has a [module plugi
     ```
 5. Run the new binary on your repo: 
     ```bash
-        ./golangci-lint-with-channelcheck
+        ./golangci-lint-with-channelcheck run 
     ```
 6. To remove false positives, add `nolint:channelcheck` above the line that had the linter error.
 
