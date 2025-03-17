@@ -43,22 +43,22 @@ func main5() {
 	select {
 	case ch <- 2:
 		// ...
-	case <-getTimer(d): // isTimeAfter won't directly detect this
+	case <-getTimer(d):
 		// ...
 	}
 
 	select {
 	case ch <- 3:
 		// ...
-	case <-wrapAfter(d): // isTimeAfter won't directly detect this
+	case <-wrapAfter(d):
 		// ...
 	}
 
-	timer3 := time.NewTimer(d)
+	timer3 := time.NewTimer(500)
 	select {
 	case ch <- 4:
 		// ...
-	case <-timer3.C: // isTimeAfter doesn't check for time.NewTimer
+	case <-timer3.C:
 		// ...
 	}
 }

@@ -170,8 +170,8 @@ package channelcheck
 
 
 Printing AST tree:
-- fset := token.NewFileSet()
--  ast.Print(fset, node)
+fset := token.NewFileSet()
+ast.Print(fset, node)
 */
 import (
 	"bytes"
@@ -350,41 +350,14 @@ func processSelect(pass *analysis.Pass, n ast.SelectStmt) (bool, bool, map[token
 			continue
 		}
 
+		// Timeout receive call. If the type being checked is 'time.Time', this is assumed to be a timeout but isn't 100% accurate.
 		foundTimeout := findNodeTimeout(pass, commClause.Comm)
 		if foundTimeout {
 			defaultOrTimeout = true
 		}
-		//fset := token.NewFileSet()
-		//ast.Print(fset, commClause.Comm)
-		/*
-			TODO search for 'time.After' and 'ticker' packages.
-			Simple example:
-				0  *ast.CommClause {
-				1  .  Case: -
-				2  .  Comm: *ast.ExprStmt {
-				3  .  .  X: *ast.UnaryExpr {
-				4  .  .  .  OpPos: -
-				5  .  .  .  Op: <-
-				6  .  .  .  X: *ast.CallExpr {
-				7  .  .  .  .  Fun: *ast.SelectorExpr {
-				8  .  .  .  .  .  X: *ast.Ident {
-				9  .  .  .  .  .  .  NamePos: -
-				10  .  .  .  .  .  .  Name: "time"
-				11  .  .  .  .  .  }
-				12  .  .  .  .  .  Sel: *ast.Ident {
-				13  .  .  .  .  .  .  NamePos: -
-				14  .  .  .  .  .  .  Name: "After"
-				15  .  .  .  .  .  }
-				16  .  .  .  .  }
-			Something more complicated with recursive searching may be necessary on the '
-		*/
-
-		//fset := token.NewFileSet() //
-		//ast.Print(fset, commClause)
 	}
 
 	return channelSendFound, defaultOrTimeout, seenPositionsLocal
-
 }
 
 // findNode recursively searches the AST node for a node of the specified type
@@ -392,24 +365,44 @@ func processSelect(pass *analysis.Pass, n ast.SelectStmt) (bool, bool, map[token
 func findNodeTimeout(pass *analysis.Pass, node ast.Node) bool {
 
 	foundTimeout := false
-	ast.Inspect(node, func(n ast.Node) bool {
-		if foundTimeout == true { // Once we've found what we're looking for, short circuit the call
-			return false
-		}
-		if n == nil {
-			return false // Stop traversal at nil nodes
-		}
 
-		call, ok := n.(*ast.CallExpr)
-		if ok {
-			timeoutCall := isTimeAfter(pass, call)
-			if timeoutCall {
-				foundTimeout = true
-			}
-		}
+	// All channel receives should be 'UnaryExpr' types with an Op of '<-'. Checking for this to reduce computations.
+	node, ok := node.(*ast.ExprStmt)
+	if !ok {
+		return false
+	}
 
-		return true // Continue traversal to child nodes
-	})
+	// Found all receive expressions only
+	nodeExpr, ok := node.(*ast.ExprStmt).X.(*ast.UnaryExpr)
+	if !ok || nodeExpr.Op != token.ARROW {
+		return false
+	}
+
+	// If it's a TICKER type
+	if isTimeReturnType(pass, nodeExpr) {
+		return true
+	}
+
+	// Need for 'timeAfter' call.
+	// ast.Inspect(nodeExpr, func(n ast.Node) bool {
+	// 	if foundTimeout == true { // Once we've found what we're looking for, short circuit the call
+	// 		return false
+	// 	}
+	// 	if n == nil {
+	// 		return false // Stop traversal at nil nodes
+	// 	}
+
+	// 	call, ok := n.(*ast.CallExpr)
+	// 	if ok {
+	// 		timeoutCall := isTimeAfter(pass, call)
+	// 		if timeoutCall {
+	// 			foundTimeout = true
+	// 			return false
+	// 		}
+	// 	}
+
+	// 	return true // Continue traversal to child nodes
+	// })
 
 	return foundTimeout
 }
@@ -449,6 +442,29 @@ func isTimeAfter(pass *analysis.Pass, expr ast.Expr) bool {
 	}
 
 	return pkgName.Imported().Path() == "time"
+}
+
+/*
+If the channel receive is for 'time.Time' types (which many of the tickers and timeouts do),
+then we assume it's safe.
+
+Could be done easier if it was possible to parse ALL variants of time.After and tickers.
+In reality, this is super hard to do because you need to deal with all possible situations of variable assignment and such. This is quick and simple, which I really like.
+
+NOTE: This IS prone to false negatives if there is another channel sending time.Time for another reason.
+This is such a great way to do this I'm okay with this false negative though.
+*/
+func isTimeReturnType(pass *analysis.Pass, expr ast.Expr) bool {
+	typeOfExpr := pass.TypesInfo.TypeOf(expr) // time.Time is interesting here
+	if typeOfExpr == nil {
+		return false // Or report an error
+	}
+
+	if typeOfExpr.String() == "time.Time" {
+		return true
+	}
+
+	return false
 }
 
 func checkChannelCreation(pass *analysis.Pass, node *ast.CallExpr) (bool, int64) {
